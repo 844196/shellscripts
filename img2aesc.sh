@@ -1,109 +1,71 @@
-#!/bin/bash
+#!/bin/bash -eu
 #
+#   @(#) ターミナルで画像表示
 #
-#    Author:
-#        sasairc (@sasairc2)
+#   Usage:
+#       img2aesc.sh [file]
+#       command | img2aesc.sh
 #
-#    License
-#        MIT
+#   Author:
+#       Original sasairc (@sasairc_2)
+#       Modified 844196 (@84____)
+#
+#   License:
+#       MIT
 #
 
-TEMP="/tmp"
-FILE="te.png"
-COLORS=16
-WIDTH=80
-HEIGHT=80
 
-RGB=""
-
-function init_color_scheme() {
-	### ANSI Compat
-	# Normal
-	ANSI[0]="\033[48;5;0m  \033[m"		# Black
-	ANSI[1]="\033[48;5;1m  \033[m"		# Red
-	ANSI[2]="\033[48;5;2m  \033[m"		# Green
-	ANSI[3]="\033[48;5;3m  \033[m"  	# Yellow
-	ANSI[4]="\033[48;5;4m  \033[m"		# Blue
-	ANSI[5]="\033[48;5;5m  \033[m"		# Magenta
-	ANSI[6]="\033[48;5;6m  \033[m"		# Cyan
-	ANSI[7]="\033[48;5;7m  \033[m"  	# White
-	ANSI[8]="\033[48;5;8m  \033[m"		# Dark Gray
-
-	# Bright
-	ANSI[9]="\033[48;5;9m  \033[m"		# Red
-	ANSI[10]="\033[48;5;10m  \033[m"  	# Green
-	ANSI[11]="\033[48;5;11m  \033[m"	# Yellow
-	ANSI[12]="\033[48;5;12m  \033[m"	# Blue
-	ANSI[13]="\033[48;5;13m  \033[m"	# Magenta
-	ANSI[14]="\033[48;5;14m  \033[m"	# Cyan
-	ANSI[15]="\033[48;5;15m  \033[m"	# White
-
-	### RGB(HEX)
-	HEX[0]='000000'
-	HEX[1]='ff0000'
-	HEX[2]='00aa00'
-	HEX[3]='aa5500'
-	HEX[4]='0000aa'
-	HEX[5]='aa00aa'
-	HEX[6]='007f7f'
-	HEX[7]='aaaaaa'
-	HEX[8]='555555'
-	HEX[9]='ff5555'
-	HEX[10]='55ff55'
-	HEX[11]='ffff55'
-	HEX[12]='5555ff'
-	HEX[13]='ff55ff'
-	HEX[14]='55ffff'
-	HEX[15]='ffffff'
+function _Error() {
+    echo "${0##*/}: $@" 1>&2
+    exit 1
 }
 
-#function declease_colors() {
-#	convert "${ORIG}" -colors 16 "${TEMP}/img2eseq_temp.jpg"
-#	test $? -ne 0 && echo "declease_colors() failed." 1>&2 && exit 1
-#	return
-#}
+# ImageMagickがないと終了
+if $(type convert >/dev/null 2>&1); then
+    :
+else
+    _Error "Require ImageMagick"
+fi
 
-function get_rgb() {
-local R=$(
-printf "%02x" $(
-convert ${FILE} -format "\
-%[fx:int(255*p{$1,$2}.r)]\
-" info:
-	)
-)
+# パイプ or 第一引数の読み取り
+[ -p /dev/stdin ] && img=$(cat -)
+[ -n "${1}" ] && img=${1}
+[ -z "${img}" ] && _Error "Invaild argument"
+if [[ ${img##*.} =~ JPE?G|jpe?g|GIF|gif|PNG|png ]]; then
+    :
+else
+    _Error "Invaild argument"
+fi
 
-local G=$(
-printf "%02x" $(
-convert ${FILE} -format "\
-%[fx:int(255*p{$1,$2}.g)]\
-" info:
-	)
-)
-local B=$(
-printf "%02x" $(
-convert ${FILE} -format "\
-%[fx:int(255*p{$1,$2},b)]\
-" info:
-	)
-)
-	RGB=$(
-			printf "$R$G$B"
-		 )
+# 一時ファイル作成
+tmpfile=$(mktemp "/tmp/tmp.$[RANDOM*RANDOM]")
+function _DeleteTmp() {
+    [[ -n ${tmpfile} ]] && rm -f "${tmpfile}"
 }
+trap '_DeleteTmp;' EXIT
+trap '_DeleteTmp; exit 1;' INT ERR
 
 
-function convert_main() {
-	for ((i = 0; i < HEIGHT; i++)); do
-		for ((j = 0; j < WIDTH; j++)); do
-			get_rgb $j $i
-			for ((k = 0; k < $COLORS; k++)); do
-				test $RGB = ${HEX[$k]} && echo -ne "${ANSI[$k]}"
-			done
+# 画像を画面の高さ-10のサイズに変換し一時ファイルに格納
+convert -resize x$[$(tput lines)-10] "${img}" "${tmpfile}"
 
-		done
-		printf "\n"
-	done
-}
+# 画像の横幅を取得
+img_width=$(identify "${tmpfile}" | sed 's/^.* \([0-9]*\)x[0-9]* .*$/\1/g')
 
-init_color_scheme
-convert_main
+# 1. 画像を1ドットずつ読み取りRGBを取得
+#       awkとsedでスペース区切りに加工しwhileで読み取る
+# 2. RGBをANSI(6x6x6)に変換
+#       rgb[0..5] -> (r*36)+(g*6)+b+16
+#       0..5(6階調)なので5を掛け255で割る
+# 3. 描画
+#       iをインクリメントし、画像の横幅と等しくなったら改行
+i=0
+convert "${tmpfile}" -crop 1x1+${img_width} txt:- 2>/dev/null |
+awk 'NR >= 2 {print $2}' | sed -e 's/[()]//g' -e 's/,/ /g' |
+while read R G B _;
+do
+    color=$[(R*5/255*36)+(G*5/255*6)+(B*5/255)+16]
+    echo -en "\033[48;5;${color}m  \033[m"
+    i=$(( ${i} + 1 ))
+    [ 0 -eq $(( ${i} % ${img_width} )) ] && echo
+done
