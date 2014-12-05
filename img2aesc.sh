@@ -17,6 +17,8 @@
 
 function _Error() {
     echo "${0##*/}: $@" 1>&2
+    echo "Usage: ${0##*/} [file]" 1>&2
+    echo "       command | ${0##*/}" 1>&2
     exit 1
 }
 
