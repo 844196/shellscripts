@@ -20,7 +20,7 @@ function _Error() {
     exit 1
 }
 
-# ImageMagickがないと終了
+# ImageMagickがなければエラーを出して終了
 if $(type convert >/dev/null 2>&1); then
     :
 else
@@ -28,6 +28,8 @@ else
 fi
 
 # パイプ or 第一引数の読み取り
+#   第一引数優先
+#   どちらもなければエラーを出して終了
 [ -p /dev/stdin ] && img=$(cat -)
 [ -n "${1}" ] && img=${1}
 [ -z "${img}" ] && _Error "Invaild argument"
