@@ -46,8 +46,8 @@ trap '_DeleteTmp;' EXIT
 trap '_DeleteTmp; exit 1;' INT ERR
 
 
-# 画像を画面の高さ-10のサイズに変換し一時ファイルに格納
-convert -resize x$[$(tput lines)-10] "${img}" "${tmpfile}"
+# 画像を画面の高さ-5のサイズに変換し一時ファイルに格納
+convert -resize x$[$(tput lines)-5] "${img}" "${tmpfile}"
 
 # 画像の横幅を取得
 img_width=$(identify "${tmpfile}" | sed 's/^.* \([0-9]*\)x[0-9]* .*$/\1/g')
