@@ -1,6 +1,8 @@
 #!/bin/sh
 
-quotes=(`cat "$HOME/dotfiles/shellscript/sachikosay_quotes.txt" | sed -e "s/○○/$USER/g" -e "s/プロデューサー/$USER/g"`)
+basedir=$(cd $(dirname ${0}) && pwd)
+
+quotes=(`cat "${basedir}/sachikosay_quotes.txt" | sed -e "s/○○/$USER/g" -e "s/プロデューサー/$USER/g"`)
 i=`expr $RANDOM % \( ${#quotes[@]} - 1 \)`
 cnt=`expr ${#quotes[$i]} - 24`
 
